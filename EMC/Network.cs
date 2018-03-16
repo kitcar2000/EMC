@@ -39,6 +39,44 @@ namespace EMC
         public int OutputSize => this.outWidth * this.outHeight * this.outChannels;
         public ActivationFunction Activation => this.f;
 
+        public Layer(Layer original)
+        {
+            this.inWidth = original.inWidth;
+            this.inHeight = original.inHeight;
+            this.inChannels = original.inChannels;
+            this.outWidth = original.outWidth;
+            this.outHeight = original.outHeight;
+            this.outChannels = original.outChannels;
+
+            this.weights = new double[original.InputSize * original.OutputSize];
+            this.bias = new double[original.OutputSize];
+
+            original.weights.CopyTo(this.weights, 0);
+            original.bias.CopyTo(this.bias, 0);
+
+            this.f = original.f;
+        }
+
+        public Layer(Layer parent1, Layer parent2, Random random)
+        {
+            this.inWidth = parent1.inWidth;
+            this.inHeight = parent1.inHeight;
+            this.inChannels = parent1.inChannels;
+            this.outWidth = parent1.outWidth;
+            this.outHeight = parent1.outHeight;
+            this.outChannels = parent1.outChannels;
+
+            this.weights = new double[parent1.InputSize * parent1.OutputSize];
+            this.bias = new double[parent1.OutputSize];
+
+            for (int i = 0; i < this.weights.Length; i++)
+                this.weights[i] = ((random.Next() & 1) == 1) ? parent1.weights[i] : parent2.weights[i];
+            for (int i = 0; i < this.bias.Length; i++)
+                this.bias[i] = ((random.Next() & 1) == 1) ? parent1.bias[i] : parent2.bias[i];
+
+            this.f = parent1.f;
+        }
+
         public Layer(int inputWidth, int inputHeight, int inputChannels, int outputWidth, int outputHeight, int outputChannels, ActivationFunction f)
         {
             this.inWidth = inputWidth;
@@ -86,6 +124,15 @@ namespace EMC
                                                                                                  outputX * this.outChannels +
                                                                                                               outputChannel] = value;
         }
+        public double this[int outputX, int outputY, int outputChannel]
+        {
+            get => this.bias[outputY * this.outWidth * this.outChannels +
+                                             outputX * this.outChannels +
+                                                          outputChannel];
+            set => this.bias[outputY * this.outWidth * this.outChannels +
+                                             outputX * this.outChannels +
+                                                         outputChannel] = value;
+        }
 
         public double[] Apply(double[] input)
         {
@@ -104,7 +151,9 @@ namespace EMC
                                                                                                                                    ic * this.outHeight * this.outWidth * this.outChannels +
                                                                                                                                                     oy * this.outWidth * this.outChannels +
                                                                                                                                                                     ox * this.outChannels +
-                                                                                                                                                                                       oc];
+                                                                                                                                                                                       oc] * input[iy * this.inWidth * this.inChannels +
+                                                                                                                                                                                                                  ix * this.inChannels +
+                                                                                                                                                                                                                                    ic];
             for (int ox = 0; ox < this.outWidth; ox++)
                 for (int oy = 0; oy < this.outHeight; oy++)
                     for (int oc = 0; oc < this.outChannels; oc++)
@@ -133,31 +182,68 @@ namespace EMC
             this.layers = new List<Layer>(layers);
         }
 
-        double[] Apply(double[] input, int inputWidth, int inputHeight, int inputChannels)
+        public Network(Network parent, Random random)
         {
-            double[] previous = new double[inputWidth * inputHeight * inputChannels],
-                     next = null;
-            input.CopyTo(previous, 0);
+            this.layers = new List<Layer>(parent.layers.Count);
+
+            for (int i = 0; i < parent.layers.Count; i++)
+                this.layers[i] = new Layer(parent.layers[i]);
+
+            this.Mutate(random);
+        }
+
+        public Network(Network parent1, Network parent2, Random random)
+        {
+            int layerCount = parent1.layers.Count;
+            this.layers = new List<Layer>(layerCount);
+
+            for (int i = 0; i < layerCount; i++)
+                this.layers[i] = new Layer(parent1.layers[i], parent2.layers[i], random);
+
+            this.Mutate(random);
+        }
+
+        public double[] Apply(double[] input, int inputWidth, int inputHeight, int inputChannels)
+        {
+            double[] currentData = new double[inputWidth * inputHeight * inputChannels]
+            input.CopyTo(currentData, 0);
             for (int i = 0; i < this.layers.Count; i++)
             {
-                next = new double[(inputWidth - this.layers[i].InputWidth + 1) * (inputHeight - this.layers[i].InputHeight + 1) * (inputChannels - this.layers[i].InputChannels + 1) * this.layers[i].OutputSize];
+                double[] nextData = new double[(inputWidth - this.layers[i].InputWidth + 1) * (inputHeight - this.layers[i].InputHeight + 1) * (inputChannels - this.layers[i].InputChannels + 1) * this.layers[i].OutputSize];
                 for (int py = 0; py < inputHeight - this.layers[i].InputHeight; py++)
                     for (int px = 0; px < inputWidth - this.layers[i].InputWidth; px++)
                     {
                         double[] patch = new double[this.layers[i].InputSize];
                         for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
-                            Array.Copy(previous, (py + iy) * inputWidth * inputChannels, 
+                            Array.Copy(currentData, (py + iy) * inputWidth * inputChannels,
                                        patch, iy * inputWidth * inputChannels, inputWidth * inputChannels);
 
                         double[] output = this.layers[i].Apply(patch);
                         for (int oy = 0; oy < this.layers[i].OutputHeight; oy++)
-                            Array.Copy(output, oy * this.layers[i].OutputWidth * this.layers[i].OutputChannels, 
-                                       next, (py * this.layers[i].OutputHeight + oy) * this.layers[i].OutputWidth * this.layers[i].OutputChannels + px * this.layers[i].OutputWidth * this.layers[i].OutputChannels, this.layers[i].OutputWidth * this.layers[i].OutputChannels);
+                            Array.Copy(output, oy * this.layers[i].OutputWidth * this.layers[i].OutputChannels,
+                                       nextData, (py * this.layers[i].OutputHeight + oy) * this.layers[i].OutputWidth * this.layers[i].OutputChannels + px * this.layers[i].OutputWidth * this.layers[i].OutputChannels, this.layers[i].OutputWidth * this.layers[i].OutputChannels);
 
                     }
-                previous = next;
+                currentData = nextData;
             }
-            return previous;
+            return currentData;
+        }
+
+        public void Mutate(Random random)
+        {
+            for (int i = 0; i < this.layers.Count; i++)
+            {
+                for (int oy = 0; oy < this.layers[i].OutputHeight, oy++)
+                    for (int ox = 0; ox < this.layers[i].OutputWidth, ox++)
+                        for (int oc = 0; oc < this.layers[i].OutputChannels, oc++)
+                        {
+                            this.layers[i][ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
+                            for (int iy = 0; iy < this.layers[i].InputHeight, iy++)
+                                for (int ix = 0; ix < this.layers[i].InputWidth, ix++)
+                                    for (int ic = 0; ic < this.layers[i].InputChannels, ic++)
+                                        this.layers[i][ix, iy, ic, ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
+                        }
+            }
         }
     }
 }

@@ -178,7 +178,7 @@ namespace EMC
         {
             this.layers = new List<Layer>(layers.Count);
             for (int i = 0; i < layers.Count; i++)
-                this.layers[i] = new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7);
+                this.layers.Add(new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7));
         }
 
         public Network(List<Layer> layers)
@@ -222,8 +222,8 @@ namespace EMC
                     {
                         double[] patch = new double[this.layers[i].InputSize];
                         for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
-                            Array.Copy(currentData, (py + iy) * inputWidth * inputChannels,
-                                       patch, iy * inputWidth * inputChannels, inputWidth * inputChannels);
+                            Array.Copy(currentData, (py + iy) * this.layers[i].InputWidth * this.layers[i].InputChannels +px* this.layers[i].InputChannels,
+                                       patch, iy * this.layers[i].InputWidth * this.layers[i].InputChannels, this.layers[i].InputWidth * this.layers[i].InputChannels);
 
                         double[] output = this.layers[i].Apply(patch);
                         for (int oy = 0; oy < this.layers[i].OutputHeight; oy++)

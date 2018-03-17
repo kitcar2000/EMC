@@ -169,12 +169,16 @@ namespace EMC
     {
         List<Layer> layers;
 
+        public int GetOutputWidth(int inputWidth) => Enumerable.Aggregate(this.layers, inputWidth, (int w, Layer l) => (1 + w - l.InputWidth) * l.OutputWidth);
+        public int GetOutputHeight(int inputHeight) => Enumerable.Aggregate(this.layers, inputHeight, (int w, Layer l) => (1 + w - l.InputHeight) * l.OutputHeight);
+        public int GetOutputChannels() => this.layers.Last().OutputChannels;
+        public int GetInputChannels() => this.layers.First().InputChannels;
+
         public Network(List<(int, int, int, int, int, int, Layer.ActivationFunction)> layers)
         {
             this.layers = new List<Layer>(layers.Count);
             for (int i = 0; i < layers.Count; i++)
                 this.layers[i] = new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7);
-            // 
         }
 
         public Network(List<Layer> layers)
@@ -205,13 +209,16 @@ namespace EMC
 
         public double[] Apply(double[] input, int inputWidth, int inputHeight, int inputChannels)
         {
-            double[] currentData = new double[inputWidth * inputHeight * inputChannels]
+            int currentWidth = inputWidth, currentHeight = inputHeight, currentChannels = inputChannels;
+            double[] currentData = new double[inputWidth * inputHeight * inputChannels];
             input.CopyTo(currentData, 0);
             for (int i = 0; i < this.layers.Count; i++)
             {
-                double[] nextData = new double[(inputWidth - this.layers[i].InputWidth + 1) * (inputHeight - this.layers[i].InputHeight + 1) * (inputChannels - this.layers[i].InputChannels + 1) * this.layers[i].OutputSize];
-                for (int py = 0; py < inputHeight - this.layers[i].InputHeight; py++)
-                    for (int px = 0; px < inputWidth - this.layers[i].InputWidth; px++)
+                int nextWidth = (1 + currentWidth - this.layers[i].InputWidth) * this.layers[i].OutputWidth,
+                    nextHeight = (1 + currentHeight - this.layers[i].InputHeight) * this.layers[i].OutputHeight;
+                double[] nextData = new double[(1 + currentWidth - this.layers[i].InputWidth) * (1 + currentHeight - this.layers[i].InputHeight) * this.layers[i].OutputSize];
+                for (int py = 0; py < nextHeight; py++)
+                    for (int px = 0; px < nextWidth; px++)
                     {
                         double[] patch = new double[this.layers[i].InputSize];
                         for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
@@ -233,14 +240,14 @@ namespace EMC
         {
             for (int i = 0; i < this.layers.Count; i++)
             {
-                for (int oy = 0; oy < this.layers[i].OutputHeight, oy++)
-                    for (int ox = 0; ox < this.layers[i].OutputWidth, ox++)
-                        for (int oc = 0; oc < this.layers[i].OutputChannels, oc++)
+                for (int oy = 0; oy < this.layers[i].OutputHeight; oy++)
+                    for (int ox = 0; ox < this.layers[i].OutputWidth; ox++)
+                        for (int oc = 0; oc < this.layers[i].OutputChannels; oc++)
                         {
                             this.layers[i][ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
-                            for (int iy = 0; iy < this.layers[i].InputHeight, iy++)
-                                for (int ix = 0; ix < this.layers[i].InputWidth, ix++)
-                                    for (int ic = 0; ic < this.layers[i].InputChannels, ic++)
+                            for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
+                                for (int ix = 0; ix < this.layers[i].InputWidth; ix++)
+                                    for (int ic = 0; ic < this.layers[i].InputChannels; ic++)
                                         this.layers[i][ix, iy, ic, ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
                         }
             }

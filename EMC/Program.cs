@@ -55,7 +55,7 @@ namespace EMC
                     Console.Write(population[i].Item2.ToString() + ",");
                 }
 
-                population.Sort(((Network, double) a, (Network, double) b) => a.Item2.CompareTo(b.Item2));
+                population.Sort(((Network, double) a, (Network, double) b) => b.Item2.CompareTo(a.Item2));
                 Console.WriteLine($",{population[0].Item2},{population[1].Item2}");
                 population = population.Take(PASS_SIZE).ToList();
 

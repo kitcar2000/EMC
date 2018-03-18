@@ -191,7 +191,7 @@ namespace EMC
             this.layers = new List<Layer>(parent.layers.Count);
 
             for (int i = 0; i < parent.layers.Count; i++)
-                this.layers[i] = new Layer(parent.layers[i]);
+                this.layers.Add(new Layer(parent.layers[i]));
 
             this.Mutate(random);
         }
@@ -202,7 +202,7 @@ namespace EMC
             this.layers = new List<Layer>(layerCount);
 
             for (int i = 0; i < layerCount; i++)
-                this.layers[i] = new Layer(parent1.layers[i], parent2.layers[i], random);
+                this.layers.Add(new Layer(parent1.layers[i], parent2.layers[i], random));
 
             this.Mutate(random);
         }

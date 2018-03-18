@@ -178,7 +178,12 @@ namespace EMC
         {
             this.layers = new List<Layer>(layers.Count);
             for (int i = 0; i < layers.Count; i++)
+            {
+                Layer newLayer = new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7);
+                for (int j = 0; j < Math.Min(newLayer.InputChannels, newLayer.OutputChannels); j++)
+                    newLayer[newLayer.InputWidth / 2, newLayer.InputHeight / 2, j, newLayer.OutputWidth / 2, newLayer.OutputHeight / 2, j] = 1;
                 this.layers.Add(new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7));
+            }
         }
 
         public Network(List<Layer> layers)

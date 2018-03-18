@@ -15,8 +15,8 @@ namespace EMC
         const int PASS_SIZE = 3;
 
         static List<(int, int, int, int, int, int, Layer.ActivationFunction)> structure = new List<(int, int, int, int, int, int, Layer.ActivationFunction)> {
-            (2,2,3,1,1,5,Layer.ActivationFunctions.LogSig),
-            (2,2,5,2,2,3,Layer.ActivationFunctions.LogSig)
+            (3,3,3,1,1,5,Layer.ActivationFunctions.SoftPlus),
+            (3,3,5,2,2,3,Layer.ActivationFunctions.LogSig)
         };
 
         static int Main(string[] args)

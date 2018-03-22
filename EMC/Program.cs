@@ -15,15 +15,19 @@ namespace EMC
         const int PASS_SIZE = 3;
 
         static List<(int, int, int, int, int, int, Layer.ActivationFunction)> structure = new List<(int, int, int, int, int, int, Layer.ActivationFunction)> {
-            (3,3,3,1,1,5,Layer.ActivationFunctions.SoftPlus),
-            (3,3,5,2,2,3,Layer.ActivationFunctions.LogSig)
+            (3,3,3,1,1,6,Layer.ActivationFunctions.SoftPlus),
+            (3,3,6,2,2,3,Layer.ActivationFunctions.LogSig)
         };
 
         static int Main(string[] args)
         {
-            //Train("C:\\Users\\User\\Pictures\\物語色", "", 10);
             if (args.Length == 4 && args[0].ToUpperInvariant() == "TRAIN")
                 Train(args[1], args[2], int.Parse(args[3]), new Random((int)DateTime.UtcNow.Ticks));
+            else if (args.Length == 4 && args[0].ToUpperInvariant() == "RUN")
+                Run(args[1], args[2], args[3]);
+            else
+                Console.WriteLine(args);
+            Console.Read();
             return 0;
         }
 
@@ -63,9 +67,12 @@ namespace EMC
                 for (int i = 0; i < POPULATION_SIZE - PASS_SIZE; i++)
                     population.Add((new Network(population[i].Item1, random), double.NaN));
             }
+
+            for (int i = 0; i < population.Count; i++)
+                population[i].Item1.Save(Path.Combine(outputPath, $"{i}.bin"));
         }
 
-        unsafe static double Evaluate(Network network, List<Bitmap> references)
+        static double Evaluate(Network network, List<Bitmap> references)
         {
             double score = 0.0;
             foreach (Bitmap reference in references)
@@ -91,16 +98,45 @@ namespace EMC
             return -score;  // Negate because big score comes from more wrongness.
         }
 
+        static void Run(string networkPath, string inputPath, string outputPath)
+        {
+            Network network = new Network(networkPath);
+            Bitmap small = new Bitmap(inputPath);
+            BitmapData smallData = small.LockBits(new Rectangle(new Point(0), small.Size), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
+            double[] smallDoubles = DataToDoubles(smallData);
+            small.UnlockBits(smallData);
+            double[] expandDoubles = network.Apply(smallDoubles, smallData.Width, smallData.Height, 3);
+
+            int outputWidth = network.GetOutputWidth(smallData.Width),
+                outputHeight = network.GetOutputHeight(smallData.Height);
+            Bitmap large = new Bitmap(outputWidth, outputHeight, PixelFormat.Format24bppRgb);
+            //for (int y = 0; y < outputHeight; y++)
+            //    for (int x = 0; x < outputWidth; x++)
+            //        large.SetPixel(x, y, Color.FromArgb((byte)(expandDoubles[y * outputWidth * 3 + x * 3] * 255.0f), (byte)(expandDoubles[y * outputWidth * 3 + x * 3 + 1] * 255.0f), (byte)(expandDoubles[y * outputWidth * 3 + x * 3 + 1] * 255.0f)));
+            BitmapData largeData = large.LockBits(new Rectangle(new Point(0), large.Size), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            DoublesToData(largeData, expandDoubles);
+            large.UnlockBits(largeData);
+            large.Save(outputPath);
+        }
+
         unsafe public static double[] DataToDoubles(BitmapData data)
         {
-            int dataSize = data.Stride * data.Height;
-            double[] floatingData = new double[data.Height * data.Stride];
+            double[] floatingData = new double[data.Height * data.Width * 3];
             byte* d = (byte*)data.Scan0.ToPointer();
             for (int y = 0; y < data.Height; y++)
                 for (int x = 0; x < data.Width; x++)
                     for (int c = 0; c < 3; c++)
-                        floatingData[y * data.Height * 3 + x * 3 + c] = d[y*data.Stride+x*3+c];
+                        floatingData[y * data.Width * 3 + x * 3 + c] = d[y * data.Stride + x * 3 + c] / 255.0;
             return floatingData;
+        }
+
+        unsafe public static void DoublesToData(BitmapData data, double[] floatingData)
+        {
+            byte* d = (byte*)data.Scan0.ToPointer();
+            for (int y = 0; y < data.Height; y++)
+                for (int x = 0; x < data.Width; x++)
+                    for (int c = 0; c < 3; c++)
+                        d[y * data.Stride + x * 3 + c] = (byte)(Math.Max(0.0, Math.Min(floatingData[y * data.Width * 3 + x * 3 + c], 1.0)) * 255.0);
         }
 
         public static double ATanh(double x) => Math.Log((1 + x) / (1 - x)) / 2;

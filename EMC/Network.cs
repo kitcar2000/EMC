@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -37,6 +38,8 @@ namespace EMC
         public int OutputHeight => this.outHeight;
         public int OutputChannels => this.outChannels;
         public int OutputSize => this.outWidth * this.outHeight * this.outChannels;
+        public double[] RawBias => (double[])this.bias.Clone();
+        public double[] RawWeights => (double[])this.weights.Clone();
         public ActivationFunction Activation => this.f;
 
         public Layer(Layer original)
@@ -55,6 +58,21 @@ namespace EMC
             original.bias.CopyTo(this.bias, 0);
 
             this.f = original.f;
+        }
+
+        public Layer(int inputWidth, int inputHeight, int inputChannels, int outputWidth, int outputHeight, int outputChannels, ActivationFunction f, double[] weights, double[] bias)
+        {
+            this.inWidth = inputWidth;
+            this.inHeight = inputHeight;
+            this.inChannels = inputChannels;
+            this.outWidth = outputWidth;
+            this.outHeight = outputHeight;
+            this.outChannels = outputChannels;
+            this.f = f;
+            this.weights = new double[weights.Length];
+            this.bias = new double[bias.Length];
+            weights.CopyTo(this.weights, 0);
+            bias.CopyTo(this.bias, 0);
         }
 
         public Layer(Layer parent1, Layer parent2, Random random)
@@ -88,23 +106,6 @@ namespace EMC
 
             this.weights = new double[inputWidth * inputHeight * inputChannels * outputWidth * outputHeight * outputChannels];
             this.bias = new double[outputWidth * outputHeight * outputChannels];
-
-            this.f = f;
-        }
-
-        public Layer(int inputWidth, int inputHeight, int inputChannels, int outputWidth, int outputHeight, int outputChannels, ActivationFunction f, double[] weights, double[] bias)
-        {
-            this.inWidth = inputWidth;
-            this.inHeight = inputHeight;
-            this.inChannels = inputChannels;
-            this.outWidth = outputWidth;
-            this.outHeight = outputHeight;
-            this.outChannels = outputChannels;
-
-            this.weights = new double[inputWidth * inputHeight * inputChannels * outputWidth * outputHeight * outputChannels];
-            this.bias = new double[outputWidth * outputHeight * outputChannels];
-            weights.CopyTo(this.weights, 0);
-            bias.CopyTo(this.bias, 0);
 
             this.f = f;
         }
@@ -222,21 +223,24 @@ namespace EMC
                 int nextWidth = (1 + currentWidth - this.layers[i].InputWidth) * this.layers[i].OutputWidth,
                     nextHeight = (1 + currentHeight - this.layers[i].InputHeight) * this.layers[i].OutputHeight;
                 double[] nextData = new double[(1 + currentWidth - this.layers[i].InputWidth) * (1 + currentHeight - this.layers[i].InputHeight) * this.layers[i].OutputSize];
-                for (int py = 0; py < nextHeight; py++)
-                    for (int px = 0; px < nextWidth; px++)
+                for (int py = 0; py < nextHeight / this.layers[i].OutputHeight; py++)
+                    for (int px = 0; px < nextWidth / this.layers[i].OutputWidth; px++)
                     {
                         double[] patch = new double[this.layers[i].InputSize];
                         for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
-                            Array.Copy(currentData, (py + iy) * this.layers[i].InputWidth * this.layers[i].InputChannels +px* this.layers[i].InputChannels,
+                            Array.Copy(currentData, (py + iy) * currentWidth * currentChannels + px * currentChannels,
                                        patch, iy * this.layers[i].InputWidth * this.layers[i].InputChannels, this.layers[i].InputWidth * this.layers[i].InputChannels);
 
                         double[] output = this.layers[i].Apply(patch);
                         for (int oy = 0; oy < this.layers[i].OutputHeight; oy++)
                             Array.Copy(output, oy * this.layers[i].OutputWidth * this.layers[i].OutputChannels,
-                                       nextData, (py * this.layers[i].OutputHeight + oy) * this.layers[i].OutputWidth * this.layers[i].OutputChannels + px * this.layers[i].OutputWidth * this.layers[i].OutputChannels, this.layers[i].OutputWidth * this.layers[i].OutputChannels);
+                                       nextData, (py * this.layers[i].OutputHeight + oy) * nextWidth * this.layers[i].OutputChannels + px * this.layers[i].OutputWidth * this.layers[i].OutputChannels, this.layers[i].OutputWidth * this.layers[i].OutputChannels);
 
                     }
                 currentData = nextData;
+                currentWidth = nextWidth;
+                currentHeight = nextHeight;
+                currentChannels = this.layers[i].OutputChannels;
             }
             return currentData;
         }
@@ -255,6 +259,93 @@ namespace EMC
                                     for (int ic = 0; ic < this.layers[i].InputChannels; ic++)
                                         this.layers[i][ix, iy, ic, ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
                         }
+            }
+        }
+
+        // Format:
+        //  int32 Layer count
+        //  {
+        //    int32 Activation Function (if in above thingy)
+        //    int32 Input Width
+        //    int32 Input Height
+        //    int32 Input Channels
+        //    int32 Output Width
+        //    int32 Output Height
+        //    int32 Output Channels
+        //    double[] weights
+        //    double[] bias
+        //  }[] Layers
+        public void Save(string path)
+        {
+            if (!Directory.Exists(Path.GetDirectoryName(path)))
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+            FileStream fs = File.Open(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            BinaryWriter bw = new BinaryWriter(fs);
+            bw.Write(this.layers.Count);
+            foreach (Layer layer in this.layers)
+            {
+                if (layer.Activation == Layer.ActivationFunctions.SoftPlus)
+                    bw.Write(0);
+                else if (layer.Activation == Layer.ActivationFunctions.ReLU)
+                    bw.Write(1);
+                else if (layer.Activation == Layer.ActivationFunctions.Tanh)
+                    bw.Write(2);
+                else if (layer.Activation == Layer.ActivationFunctions.LogSig)
+                    bw.Write(3);
+                else
+                    throw new Exception("Heck.");
+                bw.Write(layer.InputWidth);
+                bw.Write(layer.InputHeight);
+                bw.Write(layer.InputChannels);
+                bw.Write(layer.OutputWidth);
+                bw.Write(layer.OutputHeight);
+                bw.Write(layer.OutputChannels);
+                foreach (double d in layer.RawWeights)
+                    bw.Write(d);
+                foreach (double d in layer.RawBias)
+                    bw.Write(d);
+            }
+        }
+
+        public Network(string path)
+        {
+            FileStream fs = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            BinaryReader br = new BinaryReader(fs);
+            int layerCount = br.ReadInt32();
+            this.layers = new List<Layer>(layerCount);
+            for (int i = 0; i < layerCount; i++)
+            {
+                Layer.ActivationFunction f;
+                switch (br.ReadInt32())
+                {
+                    case 0:
+                        f = Layer.ActivationFunctions.SoftPlus;
+                        break;
+                    case 1:
+                        f = Layer.ActivationFunctions.ReLU;
+                        break;
+                    case 2:
+                        f = Layer.ActivationFunctions.Tanh;
+                        break;
+                    case 3:
+                        f = Layer.ActivationFunctions.LogSig;
+                        break;
+                    default:
+                        throw new Exception("Hock.");
+                }
+                int inputWidth = br.ReadInt32(),
+                    inputHeight = br.ReadInt32(),
+                    inputChannels = br.ReadInt32(),
+                    outputWidth = br.ReadInt32(),
+                    outputHeight = br.ReadInt32(),
+                    outputChannels = br.ReadInt32();
+                double[] weights = new double[inputWidth * inputHeight * inputChannels * outputWidth * outputHeight * outputChannels],
+                         bias = new double[outputWidth * outputHeight * outputChannels];
+                for (int j = 0; j < inputWidth * inputHeight * inputChannels * outputWidth * outputHeight * outputChannels; j++)
+                    weights[j] = br.ReadDouble();
+                for (int j = 0; j < outputWidth * outputHeight * outputChannels; j++)
+                    bias[j] = br.ReadDouble();
+                this.layers.Add(new Layer(inputWidth, inputHeight, inputChannels, outputWidth, outputHeight, outputChannels, f, weights, bias));
             }
         }
     }

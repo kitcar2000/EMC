@@ -15,7 +15,8 @@ namespace EMC
             public static double SoftPlus(double x) => Math.Log(Math.Exp(x) + 1);
             public static double ReLU(double x) => x > 0 ? x : 0;
             public static double Tanh(double x) => Math.Tanh(x);
-            public static double LogSig(double x) => 1.0 / (Math.Exp(x) + 1.0);
+            public static double LogSig(double x) => 1.0 / (Math.Exp(-x) + 1.0);
+            public static double Identity(double x) => x;
         }
 
         private int inWidth,
@@ -182,8 +183,10 @@ namespace EMC
             {
                 Layer newLayer = new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7);
                 for (int j = 0; j < Math.Min(newLayer.InputChannels, newLayer.OutputChannels); j++)
-                    newLayer[newLayer.InputWidth / 2, newLayer.InputHeight / 2, j, newLayer.OutputWidth / 2, newLayer.OutputHeight / 2, j] = 1;
-                this.layers.Add(new Layer(layers[i].Item1, layers[i].Item2, layers[i].Item3, layers[i].Item4, layers[i].Item5, layers[i].Item6, layers[i].Item7));
+                    for (int y = 0; y < newLayer.OutputHeight; y++)
+                        for (int x = 0; x < newLayer.OutputWidth; x++)
+                            newLayer[newLayer.InputWidth  / 2, newLayer.InputHeight / 2, j, x, y, j] = 1.0f;
+                this.layers.Add(newLayer);
             }
         }
 
@@ -253,11 +256,11 @@ namespace EMC
                     for (int ox = 0; ox < this.layers[i].OutputWidth; ox++)
                         for (int oc = 0; oc < this.layers[i].OutputChannels; oc++)
                         {
-                            this.layers[i][ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
+                            this.layers[i][ox, oy, oc] += Program.Logit(random.NextDouble());
                             for (int iy = 0; iy < this.layers[i].InputHeight; iy++)
                                 for (int ix = 0; ix < this.layers[i].InputWidth; ix++)
                                     for (int ic = 0; ic < this.layers[i].InputChannels; ic++)
-                                        this.layers[i][ix, iy, ic, ox, oy, oc] += Program.ATanh(random.NextDouble() * 2 - 1) / 2;
+                                        this.layers[i][ix, iy, ic, ox, oy, oc] += Program.Logit(random.NextDouble());
                         }
             }
         }
@@ -279,7 +282,7 @@ namespace EMC
         {
             if (!Directory.Exists(Path.GetDirectoryName(path)))
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-            FileStream fs = File.Open(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            FileStream fs = File.Open(path, FileMode.Create, FileAccess.Write, FileShare.None);
             BinaryWriter bw = new BinaryWriter(fs);
             bw.Write(this.layers.Count);
             foreach (Layer layer in this.layers)
@@ -292,6 +295,8 @@ namespace EMC
                     bw.Write(2);
                 else if (layer.Activation == Layer.ActivationFunctions.LogSig)
                     bw.Write(3);
+                else if (layer.Activation == Layer.ActivationFunctions.Identity)
+                    bw.Write(4);
                 else
                     throw new Exception("Heck.");
                 bw.Write(layer.InputWidth);
@@ -329,6 +334,9 @@ namespace EMC
                         break;
                     case 3:
                         f = Layer.ActivationFunctions.LogSig;
+                        break;
+                    case 4:
+                        f = Layer.ActivationFunctions.Identity;
                         break;
                     default:
                         throw new Exception("Hock.");

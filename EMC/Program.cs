@@ -11,12 +11,12 @@ namespace EMC
 {
     class Program
     {
-        const int POPULATION_SIZE = 10;
-        const int PASS_SIZE = 3;
+        const int POPULATION_SIZE = 20;
+        const int PASS_SIZE = 5;
 
         static List<(int, int, int, int, int, int, Layer.ActivationFunction)> structure = new List<(int, int, int, int, int, int, Layer.ActivationFunction)> {
-            (3,3,3,1,1,6,Layer.ActivationFunctions.SoftPlus),
-            (3,3,6,2,2,3,Layer.ActivationFunctions.LogSig)
+            (3,3,3,1,1,8,Layer.ActivationFunctions.SoftPlus),
+            (3,3,8,2,2,3,Layer.ActivationFunctions.LogSig)
         };
 
         static int Main(string[] args)
@@ -26,8 +26,12 @@ namespace EMC
             else if (args.Length == 4 && args[0].ToUpperInvariant() == "RUN")
                 Run(args[1], args[2], args[3]);
             else
-                Console.WriteLine(args);
-            Console.Read();
+            {
+                string[] CLA = Environment.GetCommandLineArgs();
+                Console.WriteLine($@"Usage: 
+  {CLA[0]} TRAIN <sampleImageDirectory> <outputDirectory> <generations>
+  {CLA[0]} RUN <networkFile> <imageFile> <outputFile>");
+            }
             return 0;
         }
 
@@ -60,12 +64,11 @@ namespace EMC
                 }
 
                 population.Sort(((Network, double) a, (Network, double) b) => b.Item2.CompareTo(a.Item2));
-                Console.WriteLine($",{population[0].Item2},{population[1].Item2}");
                 population = population.Take(PASS_SIZE).ToList();
 
 
                 for (int i = 0; i < POPULATION_SIZE - PASS_SIZE; i++)
-                    population.Add((new Network(population[i].Item1, random), double.NaN));
+                    population.Add((new Network(population[i].Item1, population[(int)Math.Exp(i) % i].Item1, random), double.NaN));
             }
 
             for (int i = 0; i < population.Count; i++)
@@ -139,6 +142,6 @@ namespace EMC
                         d[y * data.Stride + x * 3 + c] = (byte)(Math.Max(0.0, Math.Min(floatingData[y * data.Width * 3 + x * 3 + c], 1.0)) * 255.0);
         }
 
-        public static double ATanh(double x) => Math.Log((1 + x) / (1 - x)) / 2;
+        public static double Logit(double x) => Math.Log(x / (1 - x)) / 4;
     }
 }

@@ -142,6 +142,6 @@ namespace EMC
                         d[y * data.Stride + x * 3 + c] = (byte)(Math.Max(0.0, Math.Min(floatingData[y * data.Width * 3 + x * 3 + c], 1.0)) * 255.0);
         }
 
-        public static double Logit(double x) => Math.Log(x / (1 - x)) / 4;
+        public static double Logit(double x) => Math.Log(x / (1.0 - x)) / 16.0;
     }
 }

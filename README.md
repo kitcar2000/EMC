@@ -1,7 +1,13 @@
 # EMC
 
-Attempts at image processing using neural networks.
+An attempt to implement a neural network learning program for image-processing,  based off of [this paper by Chao Dong *et al.*](https://arxiv.org/abs/1501.00092).
 
-To start with, I plan to implement a system based off of [this paper by Chao Dong *et al.*](https://arxiv.org/abs/1501.00092).
+The current program allows to either train for a fixed number of generations or run an already-learned network from a file.
 
-This'll fail miserably.  If it's not working by 2018-03-19 I'm fucked :)
+Usage:
+```
+TRAIN <sampleImageDirectory> <outputDirectory> <generations>
+RUN <networkFile> <imageFile> <outputFile>
+```
+
+This is no longer in active development, so it is unlikely to get any better than it already is in the foreseeable future.
